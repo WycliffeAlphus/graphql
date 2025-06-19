@@ -66,8 +66,9 @@ async function handleLogin(event) {
             return;
         }
 
-        const data = await response.json();
-        const jwtToken = data.jwtToken; // Adjust based on actual response structure
+   
+        // The server returns the JWT token directly as the response body, not as a property of an object.
+        const jwtToken = await response.text(); // Get the raw text response, which is the JWT
 
         if (jwtToken) {
             localStorage.setItem('jwtToken', jwtToken); // Store JWT
@@ -75,7 +76,7 @@ async function handleLogin(event) {
             loadProfilePage(); // Load the profile page
         } else {
             displayErrorMessage('Login successful but no JWT token received.');
-            console.error('No JWT token received in login response:', data);
+            console.error('No JWT token received in login response:', jwtToken); // Log the actual received data
         }
 
     } catch (error) {
