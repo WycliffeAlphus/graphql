@@ -66,17 +66,26 @@ async function handleLogin(event) {
             return;
         }
 
-   
-        // The server returns the JWT token directly as the response body, not as a property of an object.
-        const jwtToken = await response.text(); // Get the raw text response, which is the JWT
+        let jwtToken = await response.text(); // Get the raw text response, which is the JWT
+
+        // Remove any surrounding double quotes from the JWT string (fix for previous issue)
+        jwtToken = jwtToken.replace(/^"|"$/g, '');
 
         if (jwtToken) {
-            localStorage.setItem('jwtToken', jwtToken); // Store JWT
-            console.log('Login successful! JWT stored.');
+            try {
+                localStorage.setItem('jwtToken', jwtToken); // Store JWT
+                console.log('Login successful! JWT stored.');
+                console.log('Stored JWT (first 50 chars):', jwtToken.substring(0, 50) + '...');
+                console.log('Stored JWT length:', jwtToken.length);
+            } catch (storageError) {
+                console.error('Error storing JWT in localStorage:', storageError);
+                displayErrorMessage('Failed to save session. Please try again.');
+                return;
+            }
             loadProfilePage(); // Load the profile page
         } else {
             displayErrorMessage('Login successful but no JWT token received.');
-            console.error('No JWT token received in login response:', jwtToken); // Log the actual received data
+            console.error('No JWT token received in login response (empty string or null):', jwtToken);
         }
 
     } catch (error) {
@@ -106,12 +115,25 @@ function logout() {
  * @returns {Promise<Object>} - The JSON data from the GraphQL response.
  */
 async function fetchGraphQLData(query) {
-    const jwtToken = localStorage.getItem('jwtToken');
+    let jwtToken = null;
+    try {
+        jwtToken = localStorage.getItem('jwtToken');
+    } catch (storageError) {
+        console.error('Error retrieving JWT from localStorage:', storageError);
+        displayErrorMessage('Failed to retrieve session. Please log in again.');
+        logout();
+        return null;
+    }
+
     if (!jwtToken) {
         console.error('No JWT token found. Redirecting to login.');
         logout();
         return null;
     }
+
+    console.log('JWT token being sent (first 50 chars):', jwtToken.substring(0, 50) + '...');
+    console.log('JWT token length being sent:', jwtToken.length);
+
 
     try {
         const response = await fetch(GRAPHQL_ENDPOINT, {
@@ -126,6 +148,7 @@ async function fetchGraphQLData(query) {
         if (!response.ok) {
             // If token is expired or invalid, handle appropriately
             if (response.status === 401 || response.status === 403) {
+                console.error('Authentication error (401/403): Token expired or invalid.');
                 displayErrorMessage('Session expired or invalid. Please log in again.');
                 logout();
                 return null;
@@ -140,6 +163,11 @@ async function fetchGraphQLData(query) {
             console.error('GraphQL Errors:', data.errors);
             const errorMessage = data.errors.map(err => err.message).join('; ');
             displayErrorMessage(`Data fetching error: ${errorMessage}`);
+            // Specific check for 'invalid-jwt' error for more targeted message
+            if (data.errors.some(err => err.extensions?.code === 'invalid-jwt')) {
+                displayErrorMessage('Your session is invalid. Please log in again. (Possible JWT corruption)');
+                logout(); // Force logout if JWT is explicitly invalid
+            }
             return null;
         }
 
@@ -166,7 +194,7 @@ function calculateXpProgress(transactions) {
     xpTransactions.forEach(tx => {
         cumulativeXp += tx.amount;
         xpProgress.push({
-            date: new Date(tx.createdAt).toLocaleDateString(), // Or format as YYYY-MM-DD
+            date: new Date(tx.createdAt).toLocaleDateString(), // Or format as ISO 8601YYYY-MM-DD
             totalXp: cumulativeXp
         });
     });
@@ -191,33 +219,7 @@ function calculateXpByProject(transactions) {
     return xpByProject;
 }
 
-/**
- * Calculates the audit ratio.
- * This assumes the 'user' object has an 'audits' field, where each audit has 'auditor' and 'audited' objects,
- * each containing an 'id' field, matching the authenticated user's ID.
- * @param {Array} audits - Array of audit objects from the GraphQL query.
- * @param {string} userId - The ID of the authenticated user.
- * @returns {Object} - An object containing done, received, and ratio.
- */
-function calculateAuditRatio(audits, userId) {
-    let done = 0;
-    let received = 0;
-
-    audits.forEach(audit => {
-        // Check if the current user is the auditor
-        if (audit.auditor?.id === userId) {
-            done++;
-        }
-        // Check if the current user is being audited
-        if (audit.audited?.id === userId) {
-            received++;
-        }
-    });
-
-    const ratio = received > 0 ? done / received : (done > 0 ? Infinity : 0); // Handle division by zero
-
-    return { done, received, ratio: ratio.toFixed(2) };
-}
+// Removed calculateAuditRatio function as 'audited' field is not found in 'audit' type.
 
 
 /**
@@ -548,18 +550,14 @@ function drawXpByProjectBarChart(container, data) {
 
 /**
  * Queries user data from the GraphQL endpoint.
- * This query attempts to fetch common data points based on the provided schema information.
+ * This query has been updated to remove the problematic 'audits' field with 'audited' and 'auditor' sub-fields.
+ * Instead, it attempts to fetch average grades directly from 'progresses' and 'results' tables,
+ * assuming these are available as direct relationships on the 'user' type.
  *
- * - `user { id login email }`: Directly from the user table.
- * - `totalXp`: Aggregates all 'xp' type transactions for the user.
- * - `audits_aggregate`: Attempts to get an average grade from audits (assuming 'audits' is a direct field on user).
- * - `audits`: Fetches individual audit records to calculate the audit ratio (assuming 'auditor' and 'audited' fields exist on an audit object).
- * - `transactions`: Fetches all transactions to derive XP progress over time and XP by project.
- * It explicitly includes the `object { name type }` sub-field based on the schema link between `transaction` and `object` table.
- *
- * NOTE: If your GraphQL endpoint's schema differs for 'audits' (e.g., if it's linked through 'progress' or 'result' tables directly for an 'audit' concept,
- * or if 'auditor'/'audited' fields are structured differently), this part of the query will need adjustment.
- * Please use GraphiQL/GraphQL Playground to confirm the exact structure if you encounter errors.
+ * NOTE: If 'progresses' or 'results' fields also cause errors or have a different structure,
+ * you will need to inspect the GraphQL schema on the platform's GraphiQL interface
+ * (at https://learn.zone01kisumu.ke/api/graphql-engine/v1/graphql) to find the correct way
+ * to query for grades and audit information.
  */
 const USER_PROFILE_QUERY = `
 query UserProfile {
@@ -575,46 +573,51 @@ query UserProfile {
         }
       }
     }
-    # Aggregate average grade from audits (assuming 'audits' field on user)
-    audits_aggregate(where: {grade: {_neq: 0}}) {
+    # Attempt to get average grade from 'progresses' table (if linked to user)
+    averageProgressGrade: progresses_aggregate(where: {grade: {_neq: 0}}) {
       aggregate {
         avg {
           grade
         }
       }
     }
-    # Fetch all audits to calculate audit ratio (assuming 'audits' field on user with auditor/audited)
-    audits {
-      auditor {
-        id
-      }
-      audited {
-        id
-      }
-      grade
-      group { # Assuming 'group' might be available and useful for context
-        path
+    # Attempt to get average grade from 'results' table (if linked to user)
+    averageResultGrade: results_aggregate(where: {grade: {_neq: 0}}) {
+      aggregate {
+        avg {
+          grade
+        }
       }
     }
-    # Fetch all transactions to calculate XP progress and XP by project
+    # Fetch all transactions for XP progress and XP by project
     transactions(order_by: {createdAt: asc}) {
       amount
       type
       createdAt
-      # Link to the object table to get project/exercise name and type
       object {
         name
         type
       }
     }
-    # Optionally, you might want to query progress or result tables directly for other grades
-    # Example for progress table (uncomment if needed and adjust as per schema):
-    # progresses(where: {grade: {_neq: 0}}) {
-    #   grade
-    #   object {
-    #     name
-    #   }
-    # }
+    # Fetch progresses to analyze individual progression grades if needed
+    progresses(where: {grade: {_neq: 0}}) {
+      grade
+      path
+      createdAt
+      object {
+        name
+      }
+    }
+    # Fetch results to analyze individual result grades if needed
+    results(where: {grade: {_neq: 0}}) {
+      grade
+      type # 'type' from result table could indicate pass/fail if values are "pass"/"fail" or similar
+      path
+      createdAt
+      object {
+        name
+      }
+    }
   }
 }
 `;
@@ -639,10 +642,16 @@ async function loadProfilePage() {
 
     // Calculate aggregated data
     const totalXp = user.totalXp?.aggregate?.sum?.amount || 0;
-    const avgGrade = user.audits_aggregate?.aggregate?.avg?.grade?.toFixed(2) || 'N/A';
-    // Get user ID from the fetched data for audit ratio calculation
-    const currentUserId = user.id;
-    const auditRatio = calculateAuditRatio(user.audits, currentUserId);
+
+    // Use average grade from either progresses or results, prioritizing progresses if available
+    const avgGrade = (user.averageProgressGrade?.aggregate?.avg?.grade ||
+                      user.averageResultGrade?.aggregate?.avg?.grade)?.toFixed(2) || 'N/A';
+
+    // The audit ratio calculation is removed as 'audited' field was not found.
+    // If a done/received audit ratio is required, the GraphQL schema for audit data needs
+    // to be explored further on the platform's GraphiQL interface.
+    // For now, we will display relevant grade information that is directly available.
+
     const xpProgressData = calculateXpProgress(user.transactions);
     const xpByProjectData = calculateXpByProject(user.transactions);
 
@@ -659,12 +668,12 @@ async function loadProfilePage() {
                 <p>${totalXp} B</p>
             </div>
             <div class="summary-card">
-                <h3>Average Audit Grade</h3>
+                <h3>Average Grade</h3>
                 <p>${avgGrade}</p>
             </div>
             <div class="summary-card">
-                <h3>Audit Ratio (Done/Received)</h3>
-                <p>${auditRatio.done} / ${auditRatio.received} (${auditRatio.ratio})</p>
+                <h3>User ID</h3>
+                <p>${user.id}</p>
             </div>
         </section>
 
