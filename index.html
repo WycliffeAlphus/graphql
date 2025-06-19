@@ -3,17 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Profile</title>
     <link rel="stylesheet" href="static/style.css">
-    <title>Login</title>
+    <link rel="stylesheet" href="static/profile.css">
 </head>
 <body>
-    <div class="login-container">
-        <h1>Welcome to Your Profile</h1>
-        <form>
-            <input type="text" placeholder="Enter Username or Email" required>
-            <input type="password" placeholder="Enter Password" required>
-            <button type="submit">Login</button>
-        </form>
+    <div id="app-container">
+        <!-- Login form -->
+        <div class="login-container" id="login-section">
+            <h1>Welcome to Your Profile</h1>
+            <form id="login-form">
+                <input type="text" id="username-email" placeholder="Enter Username or Email" required>
+                <input type="password" id="password" placeholder="Enter Password" required>
+                <button type="submit">Login</button>
+                <div id="error-message" class="error-message"></div>
+            </form>
+        </div>
+
+        <!-- Profile loaded after login -->
+        <div id="profile-section" style="display:none;">
+            <!-- Content inteject by JavaScript -->
+        </div>
     </div>
+    <script src="static/script.js"></script>
 </body>
 </html>
