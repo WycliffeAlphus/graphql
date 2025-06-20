@@ -912,6 +912,7 @@ async function loadProfilePage() {
     const xpProgressData = calculateXpProgress(user.transactions);
     const xpByProjectData = calculateXpByProject(user.transactions);
     const passFailCounts = calculatePassFailCounts(user.results); // Use results for pass/fail
+    console.log(user.results)
 
     // Render the fixed header
     fixedHeaderContainer.innerHTML = `
