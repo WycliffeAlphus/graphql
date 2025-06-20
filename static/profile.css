@@ -1,7 +1,17 @@
-/* profile.css */
-
 /* General Body Styles for the App */
-
+body {
+    font-family: 'Inter', sans-serif; /* Using Inter font as recommended */
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column; /* Changed to column to stack fixed header and scrollable content */
+    justify-content: flex-start;
+    align-items: center; /* Align items to the top for profile page */
+    min-height: 100vh; /* Ensure it takes full viewport height */
+    box-sizing: border-box;
+    color: #333;
+}
 
 #app-container {
     width: 100%;
@@ -14,46 +24,47 @@
     gap: 20px; /* Space between sections */
 }
 
-.login-container {
+/* Fixed Header Styles */
+#fixed-header-container {
+    position: fixed; /* Makes the header stay in place */
+    top: 0;
+    left: 0;
+    width: 100%;
     background-color: #ffffff;
-    padding: 40px;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    text-align: center;
-    max-width: 400px;
-    width: 100%;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000; /* Ensures it stays on top of other content */
+    display: flex; /* Use flex for internal layout */
+    justify-content: center; /* Center its content */
+    padding: 10px 0; /* Vertical padding */
     box-sizing: border-box;
-    display: flex; /* Make it a flex container */
-    flex-direction: column; /* Stack children vertically */
-    align-items: center; /* Center items horizontally */
-    justify-content: center; /* Center items vertically */
-    gap: 20px; /* Space between elements */
 }
 
-
-.login-container form {
+.profile-header {
+    width: 100%;
+    max-width: 1200px; /* Match app-container max-width */
     display: flex;
-    flex-direction: column;
-    gap: 15px;
-    width: 100%;
-}
-
-.login-container input[type="text"],
-.login-container input[type="password"] {
-    width: calc(100% - 20px); /* Account for padding */
-    padding: 12px 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 1em;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px; /* Horizontal padding */
     box-sizing: border-box;
-    transition: border-color 0.3s ease;
 }
 
-.login-container input[type="text"]:focus,
-.login-container input[type="password"]:focus {
-    border-color: #60a5fa; /* Tailwind blue-400 */
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+/* Adjust main content area to prevent overlap with fixed header */
+#profile-content-scroll-area {
+    width: 100%;
+    max-width: 1200px;
+    padding-top: 80px;
+    margin-top: 20px; /* This creates the desired space */
+    box-sizing: border-box;
+    display: none; /* Hidden by default, shown by JS */
+    flex-direction: column;
+    gap: 30px;
+    padding-left: 20px; /* Retain horizontal padding */
+    padding-right: 20px; /* Retain horizontal padding */
+    padding-bottom: 20px; /* Retain bottom padding */
+    background-color: #ffffff; /* Background for scrollable area */
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); /* Apply shadow to the main scrollable content */
 }
 
 
@@ -71,25 +82,6 @@
     text-align: center;
 }
 
-/* Profile Page Styles */
-#profile-section {
-    width: 100%;
-    display: none; /* Hidden by default, shown by JS */
-    flex-direction: column;
-    gap: 30px;
-    padding: 20px;
-    background-color: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-}
-
-.profile-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 20px;
-    border-bottom: 1px solid #eee;
-}
 
 .profile-title {
     font-size: 2.5em;
@@ -100,13 +92,14 @@
 .logout-button {
     background-color: #ef4444; /* Tailwind red-500 */
     color: white;
-    padding: 10px 20px;
+    padding: 8px 16px; /* Reduced padding */
     border: none;
     border-radius: 8px;
-    font-size: 1em;
+    font-size: 0.9em; /* Reduced font size */
     cursor: pointer;
     transition: background-color 0.3s ease, transform 0.2s ease;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    min-width: unset; /* Ensure no fixed minimum width interferes */
 }
 
 .logout-button:hover {
@@ -293,6 +286,12 @@
         text-align: center;
     }
 
+    /* Adjust padding for fixed header on smaller screens */
+    #profile-content-scroll-area {
+        padding-top: 120px; /* Increase padding-top for smaller screens if header height increases */
+        margin-top: 20px; /* Keep consistent margin */
+    }
+
     .profile-summary {
         flex-direction: column;
         align-items: center;
@@ -318,18 +317,14 @@
 }
 
 @media (max-width: 480px) {
-    .login-container, #profile-section {
+    #profile-content-scroll-area { /* Use the new ID */
         padding: 15px;
-        margin: 10px;
-    }
-
-    .login-container h1 {
-        font-size: 1.8em;
+        margin: 10px; /* Adjust margin for smaller screens */
     }
 
     .logout-button {
-        padding: 8px 15px;
-        font-size: 0.9em;
+        padding: 6px 12px; /* Even smaller on very small screens */
+        font-size: 0.8em;
     }
 
     .summary-card h3 {
