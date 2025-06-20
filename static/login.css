@@ -5,7 +5,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;  /* 👈 Ensures it takes exactly full screen height */
+    height: 100vh; 
     margin: 0;
     padding: 20px;
 }
