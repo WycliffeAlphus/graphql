@@ -6,7 +6,8 @@ const SIGNIN_ENDPOINT = 'https://learn.zone01kisumu.ke/api/auth/signin';
 
 // DOM Elements
 const loginSection = document.getElementById('login-section');
-const profileSection = document.getElementById('profile-section');
+const fixedHeaderContainer = document.getElementById('fixed-header-container'); // New DOM element
+const profileContentScrollArea = document.getElementById('profile-content-scroll-area'); // Renamed
 const loginForm = document.getElementById('login-form');
 const usernameEmailInput = document.getElementById('username-email');
 const passwordInput = document.getElementById('password');
@@ -100,9 +101,11 @@ async function handleLogin(event) {
 function logout() {
     localStorage.removeItem('jwtToken');
     console.log('Logged out. JWT removed.');
-    // Show login section, hide profile section
-    profileSection.style.display = 'none';
-    profileSection.innerHTML = ''; // Clear profile content
+    // Hide profile sections, show login section
+    fixedHeaderContainer.style.display = 'none';
+    fixedHeaderContainer.innerHTML = '';
+    profileContentScrollArea.style.display = 'none';
+    profileContentScrollArea.innerHTML = ''; // Clear profile content
     loginSection.style.display = 'flex'; // Or 'block' depending on its original display
     usernameEmailInput.value = ''; // Clear form fields
     passwordInput.value = '';
@@ -219,8 +222,32 @@ function calculateXpByProject(transactions) {
     return xpByProject;
 }
 
-// Removed calculateAuditRatio function as 'audited' field is not found in 'audit' type.
+// Removed calculateAuditRatio function as 'audited' field was not found.
 
+
+/**
+ * Calculates pass/fail counts for 'tester' type results.
+ * @param {Array} results - Array of result objects.
+ * @returns {{passed: number, failed: number, total: number}} - Counts of passed and failed exercises.
+ */
+function calculatePassFailCounts(results) {
+    let passed = 0;
+    let failed = 0;
+    let totalTested = 0;
+
+    results.forEach(res => {
+        if (res.type === 'tester' && res.grade !== null) { // Ensure it's a tester result and grade exists
+            totalTested++;
+            if (res.grade === 1) {
+                passed++;
+            } else if (res.grade < 1 && res.grade >= 0) { // Consider any grade < 1 (but not negative) as a fail
+                failed++;
+            }
+        }
+    });
+
+    return { passed, failed, total: totalTested };
+}
 
 /**
  * Draws an SVG line chart for XP progress over time.
@@ -238,7 +265,7 @@ function drawXpProgressLineChart(container, data) {
     const height = 300;
     const margin = { top: 20, right: 30, bottom: 60, left: 70 }; // Increased bottom for rotated labels
     const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
+    const innerHeight = height - (margin.top + margin.bottom); // Correct calculation
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
@@ -251,7 +278,8 @@ function drawXpProgressLineChart(container, data) {
     svg.appendChild(chartGroup);
 
     // Calculate scales
-    const xMax = Math.max(...data.map((d, i) => i)); // Use index for x-axis to evenly space points
+    // Ensure xMax is at least 1 to prevent division by zero if only one data point
+    const xMax = data.length > 1 ? Math.max(...data.map((d, i) => i)) : 1;
     const yMax = Math.max(...data.map(d => d.totalXp));
 
     const xScale = (index) => (index / xMax) * innerWidth;
@@ -293,7 +321,7 @@ function drawXpProgressLineChart(container, data) {
     // X-axis title
     const xAxisTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     xAxisTitle.setAttribute('x', innerWidth / 2);
-    xAxisTitle.setAttribute('y', height - margin.top - 5);
+    xAxisTitle.setAttribute('y', height - margin.top - 5); // Adjusted position
     xAxisTitle.setAttribute('text-anchor', 'middle');
     xAxisTitle.setAttribute('fill', '#333');
     xAxisTitle.setAttribute('font-size', '12');
@@ -326,19 +354,32 @@ function drawXpProgressLineChart(container, data) {
     chartGroup.appendChild(yAxisTitle);
 
 
-    // Draw the line path
-    let pathData = `M ${xScale(0)},${yScale(data[0].totalXp)}`;
-    for (let i = 1; i < data.length; i++) {
-        pathData += ` L ${xScale(i)},${yScale(data[i].totalXp)}`;
+    // Draw the line path (only if there are at least two points to form a line)
+    if (data.length > 1) {
+        let pathData = `M ${xScale(0)},${yScale(data[0].totalXp)}`;
+        for (let i = 1; i < data.length; i++) {
+            pathData += ` L ${xScale(i)},${yScale(data[i].totalXp)}`;
+        }
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', '#60a5fa'); // Blue color
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('class', 'chart-line');
+        chartGroup.appendChild(path);
+    } else if (data.length === 1) {
+        // If only one point, draw a circle at that point
+        const singlePoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        singlePoint.setAttribute('cx', xScale(0));
+        singlePoint.setAttribute('cy', yScale(data[0].totalXp));
+        singlePoint.setAttribute('r', 5);
+        singlePoint.setAttribute('fill', '#60a5fa');
+        singlePoint.setAttribute('stroke', '#fff');
+        singlePoint.setAttribute('stroke-width', '2');
+        chartGroup.appendChild(singlePoint);
     }
 
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', pathData);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', '#60a5fa'); // Blue color
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('class', 'chart-line');
-    chartGroup.appendChild(path);
 
     // Add circles for data points
     data.forEach((d, i) => {
@@ -406,8 +447,8 @@ function drawXpByProjectBarChart(container, data) {
     const width = 600;
     const height = 300;
     const margin = { top: 20, right: 30, bottom: 100, left: 70 }; // Increased bottom for project names
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
+    const innerWidth = width - (margin.left + margin.right); // Correct calculation
+    const innerHeight = height - (margin.top + margin.bottom); // Correct calculation
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
@@ -419,8 +460,9 @@ function drawXpByProjectBarChart(container, data) {
     svg.appendChild(chartGroup);
 
     // Scales
-    const xBandWidth = innerWidth / displayProjects.length;
-    const yMax = Math.max(...displayData.map(d => d.xp));
+    // Ensure displayProjects.length is at least 1 to prevent division by zero
+    const xBandWidth = innerWidth / (displayProjects.length || 1);
+    const yMax = Math.max(...displayData.map(d => d.xp)); // Max XP for scaling
 
     const xScale = (index) => index * xBandWidth;
     const yScale = (value) => innerHeight - (value / yMax) * innerHeight;
@@ -492,7 +534,7 @@ function drawXpByProjectBarChart(container, data) {
     // X-axis title
     const xAxisTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     xAxisTitle.setAttribute('x', innerWidth / 2);
-    xAxisTitle.setAttribute('y', height - margin.top - 5);
+    xAxisTitle.setAttribute('y', height - margin.top - 5); // Adjusted position
     xAxisTitle.setAttribute('text-anchor', 'middle');
     xAxisTitle.setAttribute('fill', '#333');
     xAxisTitle.setAttribute('font-size', '12');
@@ -599,19 +641,19 @@ query UserProfile {
         type
       }
     }
-    # Fetch progresses to analyze individual progression grades if needed
-    progresses(where: {grade: {_neq: 0}}) {
+    # Fetch all results to analyze pass/fail ratio, also includes object info
+    results(order_by: {createdAt: asc}) {
       grade
+      type # 'type' from result table (e.g., "tester", "admin_selection")
       path
       createdAt
       object {
         name
       }
     }
-    # Fetch results to analyze individual result grades if needed
-    results(where: {grade: {_neq: 0}}) {
+    # Fetch progresses to analyze individual progression grades if needed (not directly used for new graph)
+    progresses(where: {grade: {_neq: 0}}) {
       grade
-      type # 'type' from result table could indicate pass/fail if values are "pass"/"fail" or similar
       path
       createdAt
       object {
@@ -628,13 +670,17 @@ query UserProfile {
  */
 async function loadProfilePage() {
     loginSection.style.display = 'none'; // Hide login form
-    profileSection.style.display = 'flex'; // Show profile container (use flex for layout)
-    profileSection.innerHTML = '<div class="loading-spinner"></div><p>Loading profile...</p>'; // Show loading indicator
+    fixedHeaderContainer.style.display = 'flex'; // Show fixed header
+    profileContentScrollArea.style.display = 'flex'; // Show scrollable content area
+
+    // Clear previous content
+    fixedHeaderContainer.innerHTML = '';
+    profileContentScrollArea.innerHTML = '<div class="loading-spinner"></div><p>Loading profile...</p>'; // Show loading indicator
 
     const data = await fetchGraphQLData(USER_PROFILE_QUERY);
 
     if (!data || !data.user || data.user.length === 0) {
-        profileSection.innerHTML = '<p class="error-message">Could not load profile data. Please try again or log in.</p>';
+        profileContentScrollArea.innerHTML = '<p class="error-message">Could not load profile data. Please try again or log in.</p>';
         return;
     }
 
@@ -647,21 +693,20 @@ async function loadProfilePage() {
     const avgGrade = (user.averageProgressGrade?.aggregate?.avg?.grade ||
                       user.averageResultGrade?.aggregate?.avg?.grade)?.toFixed(2) || 'N/A';
 
-    // The audit ratio calculation is removed as 'audited' field was not found.
-    // If a done/received audit ratio is required, the GraphQL schema for audit data needs
-    // to be explored further on the platform's GraphiQL interface.
-    // For now, we will display relevant grade information that is directly available.
-
     const xpProgressData = calculateXpProgress(user.transactions);
     const xpByProjectData = calculateXpByProject(user.transactions);
+    const passFailCounts = calculatePassFailCounts(user.results); // Use results for pass/fail
 
-    // Build the profile page HTML dynamically
-    profileSection.innerHTML = `
+    // Render the fixed header
+    fixedHeaderContainer.innerHTML = `
         <header class="profile-header">
             <h1 class="profile-title">Welcome, ${user.login}!</h1>
             <button id="logout-button" class="logout-button">Logout</button>
         </header>
+    `;
 
+    // Render the scrollable profile content
+    profileContentScrollArea.innerHTML = `
         <section class="profile-summary">
             <div class="summary-card">
                 <h3>Total XP</h3>
@@ -672,8 +717,8 @@ async function loadProfilePage() {
                 <p>${avgGrade}</p>
             </div>
             <div class="summary-card">
-                <h3>User ID</h3>
-                <p>${user.id}</p>
+                <h3>Exercises Tested</h3>
+                <p>${passFailCounts.total}</p>
             </div>
         </section>
 
@@ -686,21 +731,20 @@ async function loadProfilePage() {
                 <div class="chart-box">
                     <div id="xp-by-project-chart" class="chart-canvas"></div>
                 </div>
+                <div class="chart-box">
+                    <div id="pass-fail-chart" class="chart-canvas"></div>
+                </div>
             </div>
-        </section>
-
-        <section class="raw-data-section">
-            <h2>Raw Data (For Debugging/Reference)</h2>
-            <pre>${JSON.stringify(user, null, 2)}</pre>
         </section>
     `;
 
-    // Attach event listener to the logout button
+    // Attach event listener to the logout button (must be done AFTER rendering)
     document.getElementById('logout-button').addEventListener('click', logout);
 
     // Draw graphs after the elements are in the DOM
     const xpProgressChartContainer = document.getElementById('xp-progress-chart');
     const xpByProjectChartContainer = document.getElementById('xp-by-project-chart');
+    const passFailChartContainer = document.getElementById('pass-fail-chart');
 
     drawXpProgressLineChart(xpProgressChartContainer, xpProgressData);
     drawXpByProjectBarChart(xpByProjectChartContainer, xpByProjectData);
@@ -718,6 +762,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.log('No JWT token found. Displaying login page.');
         loginSection.style.display = 'flex'; // Ensure login is visible
-        profileSection.style.display = 'none'; // Ensure profile is hidden
+        fixedHeaderContainer.style.display = 'none'; // Ensure fixed header is hidden
+        profileContentScrollArea.style.display = 'none'; // Ensure scrollable content is hidden
     }
 });
