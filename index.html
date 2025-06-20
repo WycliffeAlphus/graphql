@@ -4,12 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Your Profile</title>
+    
     <link rel="stylesheet" href="static/login.css">
+  
     <link rel="stylesheet" href="static/profile.css">
 </head>
 <body>
+
+    <div id="fixed-header-container" style="display: none;"></div>
+
     <div id="app-container">
-        <!-- Login form -->
+        <!-- Login Section -->
         <div class="login-container" id="login-section">
             <h1>Welcome to Your Profile</h1>
             <form id="login-form">
@@ -20,9 +25,8 @@
             </form>
         </div>
 
-        <!-- Profile loaded after login -->
-        <div id="profile-section" style="display:none;">
-            <!-- Content inteject by JavaScript -->
+        <!-- Profile Section -->
+        <div id="profile-content-scroll-area" style="display:none;">
         </div>
     </div>
     <script src="static/script.js"></script>
