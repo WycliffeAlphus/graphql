@@ -1,7 +1,7 @@
 /* Reset default margin and set up flex centering */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(to right, #74ebd5, #acb6e5);
+    background: linear-gradient(to right, #0a3d62, #1e5799);
     display: flex;
     justify-content: center;
     align-items: center;
