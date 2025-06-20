@@ -277,6 +277,41 @@ body {
     word-break: break-all; /* Break words to prevent overflow */
 }
 
+/* Radar chart specific styles */
+.chart-box .chart-svg polygon {
+    fill-opacity: 0.4;
+    stroke-width: 2;
+}
+
+.chart-box .chart-svg text.chart-tooltip {
+    fill: #333;
+    font-size: 12px;
+    font-weight: bold;
+    text-shadow: 0 0 2px white;
+}
+
+.chart-box .chart-svg circle {
+    cursor: pointer;
+}
+
+/* Add this to your profile.css */
+#skills-radar-chart {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: visible;
+}
+
+
+.chart-box:nth-child(3) { /* Assuming radar is the 3rd chart */
+    min-width: 500px; /* Slightly larger to accommodate the radar */
+    max-width: 500px;
+    height: 500px; /* Make it square */
+    padding: 10px; /* Reduce padding to give more space */
+}
+
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {

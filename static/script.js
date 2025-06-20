@@ -250,6 +250,186 @@ function calculatePassFailCounts(results) {
 }
 
 /**
+ * Draws an SVG radar chart for skills.
+ * @param {HTMLElement} container - The SVG container element.
+ * @param {Array<{type: string, amount: number}>} data - Array of skill objects.
+ */
+function drawSkillsRadarChart(container, data) {
+    container.innerHTML = ''; // Clear previous SVG content
+    if (!data || data.length === 0) {
+        container.textContent = 'No skills data available for radar chart.';
+        return;
+    }
+
+    // Filter out non-skill types and format data
+    const skills = data
+        .filter(item => item.type.startsWith('skill_'))
+        .map(item => ({
+            name: item.type.replace('skill_', '').replace('-', ' '),
+            value: item.amount
+        }));
+
+    if (skills.length === 0) {
+        container.textContent = 'No valid skill data found.';
+        return;
+    }
+
+    const width = 500;
+    const height = 500;
+    const margin = { top: 60, right: 60, bottom: 60, left: 60 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    const radius = Math.min(innerWidth, innerHeight) / 2;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.setAttribute('class', 'chart-svg');
+
+    const chartGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    chartGroup.setAttribute('transform', `translate(${width / 2}, ${height / 2})`);
+    svg.appendChild(chartGroup);
+
+    // Find max value for scaling
+    const maxValue = Math.max(...skills.map(s => s.value), 10);
+
+    // Number of axes (same as number of skills)
+    const numAxes = skills.length;
+    const angleSlice = (Math.PI * 2) / numAxes;
+
+    // Draw circular grid lines
+    const levels = 5;
+    for (let level = 1; level <= levels; level++) {
+        const levelFactor = radius * (level / levels);
+        const levelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        
+        // Draw polygon for this level
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        let points = '';
+        for (let i = 0; i < numAxes; i++) {
+            const angle = i * angleSlice - Math.PI / 2;
+            const x = levelFactor * Math.cos(angle);
+            const y = levelFactor * Math.sin(angle);
+            points += `${x},${y} `;
+        }
+        polygon.setAttribute('points', points);
+        polygon.setAttribute('stroke', '#ddd');
+        polygon.setAttribute('fill', 'none');
+        levelGroup.appendChild(polygon);
+        
+        // Add level label
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', 0);
+        label.setAttribute('y', -levelFactor - 5);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('fill', '#666');
+        label.setAttribute('font-size', '10');
+        label.textContent = Math.round((maxValue / levels) * level);
+        levelGroup.appendChild(label);
+        chartGroup.appendChild(levelGroup);
+    }
+
+    // Draw axes
+    for (let i = 0; i < numAxes; i++) {
+        const angle = i * angleSlice - Math.PI / 2;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', 0);
+        line.setAttribute('y1', 0);
+        line.setAttribute('x2', radius * Math.cos(angle));
+        line.setAttribute('y2', radius * Math.sin(angle));
+        line.setAttribute('stroke', '#999');
+        line.setAttribute('stroke-width', '1');
+        chartGroup.appendChild(line);
+    }
+
+    // Draw skill labels
+    for (let i = 0; i < numAxes; i++) {
+        const angle = i * angleSlice - Math.PI / 2;
+        const labelRadius = radius + 20;
+        const x = labelRadius * Math.cos(angle);
+        const y = labelRadius * Math.sin(angle);
+        
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', x);
+        label.setAttribute('y', y);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('fill', '#333');
+        label.setAttribute('font-size', '12');
+        
+        // Adjust label position for readability
+        if (angle > Math.PI / 2 && angle < 3 * Math.PI / 2) {
+            label.setAttribute('text-anchor', 'end');
+        }
+        
+        label.textContent = skills[i].name;
+        chartGroup.appendChild(label);
+    }
+
+    // Draw the radar shape
+    const radar = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    let points = '';
+    for (let i = 0; i < numAxes; i++) {
+        const angle = i * angleSlice - Math.PI / 2;
+        const value = skills[i].value;
+        const scaledValue = (value / maxValue) * radius;
+        const x = scaledValue * Math.cos(angle);
+        const y = scaledValue * Math.sin(angle);
+        points += `${x},${y} `;
+    }
+    radar.setAttribute('points', points);
+    radar.setAttribute('fill', 'rgba(75, 192, 192, 0.4)');
+    radar.setAttribute('stroke', 'rgba(75, 192, 192, 1)');
+    radar.setAttribute('stroke-width', '2');
+    chartGroup.appendChild(radar);
+
+    // Add dots at each data point
+    for (let i = 0; i < numAxes; i++) {
+        const angle = i * angleSlice - Math.PI / 2;
+        const value = skills[i].value;
+        const scaledValue = (value / maxValue) * radius;
+        const x = scaledValue * Math.cos(angle);
+        const y = scaledValue * Math.sin(angle);
+        
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', x);
+        dot.setAttribute('cy', y);
+        dot.setAttribute('r', 4);
+        dot.setAttribute('fill', 'rgba(75, 192, 192, 1)');
+        dot.setAttribute('stroke', '#fff');
+        dot.setAttribute('stroke-width', '1');
+        
+        // Add tooltip on hover
+        dot.addEventListener('mouseenter', () => {
+            const tooltip = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            tooltip.setAttribute('x', x + 10);
+            tooltip.setAttribute('y', y - 10);
+            tooltip.setAttribute('fill', '#000');
+            tooltip.setAttribute('font-size', '12');
+            tooltip.textContent = `${skills[i].name}: ${value}`;
+            tooltip.setAttribute('class', 'chart-tooltip');
+            chartGroup.appendChild(tooltip);
+        });
+        dot.addEventListener('mouseleave', () => {
+            const tooltip = chartGroup.querySelector('.chart-tooltip');
+            if (tooltip) tooltip.remove();
+        });
+        
+        chartGroup.appendChild(dot);
+    }
+
+    // Add chart title
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    title.setAttribute('x', 0);
+    title.setAttribute('y', -radius - margin.top + 20);
+    title.setAttribute('text-anchor', 'middle');
+    title.setAttribute('font-size', '16');
+    title.setAttribute('fill', '#333');
+    chartGroup.appendChild(title);
+
+    container.appendChild(svg);
+}
+
+/**
  * Draws an SVG line chart for XP progress over time.
  * @param {HTMLElement} container - The SVG container element.
  * @param {Array<{date: string, totalXp: number}>} data - Data points for the chart.
@@ -604,35 +784,47 @@ function drawXpByProjectBarChart(container, data) {
 const USER_PROFILE_QUERY = `
 query UserProfile {
   user {
+    # Basic user info
     id
     login
     email
-    # Aggregate total XP from transactions table where type is 'xp'
-    totalXp: transactions_aggregate(where: {type: {_eq: "xp"}}) {
+
+    # XP Metrics
+    totalXp: transactions_aggregate(
+      where: {type: {_eq: "xp"}}
+    ) {
       aggregate {
         sum {
           amount
         }
       }
     }
-    # Attempt to get average grade from 'progresses' table (if linked to user)
-    averageProgressGrade: progresses_aggregate(where: {grade: {_neq: 0}}) {
+
+    # Grade Metrics
+    averageProgressGrade: progresses_aggregate(
+      where: {grade: {_neq: 0}}
+    ) {
       aggregate {
         avg {
           grade
         }
       }
     }
-    # Attempt to get average grade from 'results' table (if linked to user)
-    averageResultGrade: results_aggregate(where: {grade: {_neq: 0}}) {
+    
+    averageResultGrade: results_aggregate(
+      where: {grade: {_neq: 0}}
+    ) {
       aggregate {
         avg {
           grade
         }
       }
     }
-    # Fetch all transactions for XP progress and XP by project
-    transactions(order_by: {createdAt: asc}) {
+
+    # Transaction Data
+    transactions(
+      order_by: {createdAt: asc}
+    ) {
       amount
       type
       createdAt
@@ -641,18 +833,41 @@ query UserProfile {
         type
       }
     }
-    # Fetch all results to analyze pass/fail ratio, also includes object info
-    results(order_by: {createdAt: asc}) {
+
+    # Results Data
+    results(
+      order_by: {createdAt: asc}
+    ) {
       grade
-      type # 'type' from result table (e.g., "tester", "admin_selection")
+      type
       path
       createdAt
       object {
         name
       }
     }
-    # Fetch progresses to analyze individual progression grades if needed (not directly used for new graph)
-    progresses(where: {grade: {_neq: 0}}) {
+
+    # Skills Data
+    skill_types: transactions_aggregate(
+      distinct_on: [type]
+      where: {
+        type: {_nin: ["xp", "level", "up", "down"]}
+      }
+      order_by: [
+        {type: asc}
+        {amount: desc}
+      ]
+    ) {
+      nodes {
+        type
+        amount
+      }
+    }
+
+    # Progress Data
+    progresses(
+      where: {grade: {_neq: 0}}
+    ) {
       grade
       path
       createdAt
@@ -678,6 +893,7 @@ async function loadProfilePage() {
     profileContentScrollArea.innerHTML = '<div class="loading-spinner"></div><p>Loading profile...</p>'; // Show loading indicator
 
     const data = await fetchGraphQLData(USER_PROFILE_QUERY);
+    console.log('Fetched profile data:', data);
 
     if (!data || !data.user || data.user.length === 0) {
         profileContentScrollArea.innerHTML = '<p class="error-message">Could not load profile data. Please try again or log in.</p>';
@@ -732,7 +948,8 @@ async function loadProfilePage() {
                     <div id="xp-by-project-chart" class="chart-canvas"></div>
                 </div>
                 <div class="chart-box">
-                    <div id="pass-fail-chart" class="chart-canvas"></div>
+                <h3>Skills</h3>
+                    <div id="skills-radar-chart" class="chart-canvas"></div>
                 </div>
             </div>
         </section>
@@ -748,6 +965,10 @@ async function loadProfilePage() {
 
     drawXpProgressLineChart(xpProgressChartContainer, xpProgressData);
     drawXpByProjectBarChart(xpByProjectChartContainer, xpByProjectData);
+    const skillsRadarChartContainer = document.getElementById('skills-radar-chart');
+    if (user.skill_types && user.skill_types.nodes) {
+        drawSkillsRadarChart(skillsRadarChartContainer, user.skill_types.nodes);
+    }
 }
 
 // Initial check on page load
