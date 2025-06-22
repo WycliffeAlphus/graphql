@@ -788,10 +788,16 @@ query UserProfile {
     id
     login
     email
+    auditRatio
 
-    # XP Metrics
+    # XP Metrics - Filtered by eventId 75 (module)
     totalXp: transactions_aggregate(
-      where: {type: {_eq: "xp"}}
+      where: {
+        _and: [
+          {type: {_eq: "xp"}},
+          {eventId: {_eq: 75}}
+        ]
+      }
     ) {
       aggregate {
         sum {
@@ -800,9 +806,14 @@ query UserProfile {
       }
     }
 
-    # Grade Metrics
+    # Grade Metrics - Filtered by eventId 75 (module)
     averageProgressGrade: progresses_aggregate(
-      where: {grade: {_neq: 0}}
+      where: {
+        _and: [
+          {grade: {_neq: 0}},
+          {eventId: {_eq: 75}}
+        ]
+      }
     ) {
       aggregate {
         avg {
@@ -812,7 +823,12 @@ query UserProfile {
     }
     
     averageResultGrade: results_aggregate(
-      where: {grade: {_neq: 0}}
+      where: {
+        _and: [
+          {grade: {_neq: 0}},
+          {eventId: {_eq: 75}}
+        ]
+      }
     ) {
       aggregate {
         avg {
@@ -821,21 +837,24 @@ query UserProfile {
       }
     }
 
-    # Transaction Data
+    # Transaction Data - Filtered by eventId 75 (module)
     transactions(
+      where: {eventId: {_eq: 75}}
       order_by: {createdAt: asc}
     ) {
       amount
       type
       createdAt
+      eventId
       object {
         name
         type
       }
     }
 
-    # Results Data
+    # Results Data - Filtered by eventId 75 (module)
     results(
+      where: {eventId: {_eq: 75}}
       order_by: {createdAt: asc}
     ) {
       grade
@@ -847,11 +866,14 @@ query UserProfile {
       }
     }
 
-    # Skills Data
+    # Skills Data - Filtered by eventId 75 (module)
     skill_types: transactions_aggregate(
       distinct_on: [type]
       where: {
-        type: {_nin: ["xp", "level", "up", "down"]}
+        _and: [
+          {type: {_nin: ["xp", "level", "up", "down"]}},
+          {eventId: {_eq: 75}}
+        ]
       }
       order_by: [
         {type: asc}
@@ -864,9 +886,14 @@ query UserProfile {
       }
     }
 
-    # Progress Data
+    # Progress Data - Filtered by eventId 75 (module)
     progresses(
-      where: {grade: {_neq: 0}}
+      where: {
+        _and: [
+          {grade: {_neq: 0}},
+          {eventId: {_eq: 75}}
+        ]
+      }
     ) {
       grade
       path
@@ -876,6 +903,12 @@ query UserProfile {
       }
     }
   }
+  
+  # Get module information
+  event(where: {path: {_eq: "/kisumu/module"}}) {
+    startAt
+    endAt
+  }
 }
 `;
 
@@ -883,14 +916,13 @@ query UserProfile {
 /**
  * Loads and displays the user profile page.
  */
-async function loadProfilePage() {
-    loginSection.style.display = 'none'; // Hide login form
-    fixedHeaderContainer.style.display = 'flex'; // Show fixed header
-    profileContentScrollArea.style.display = 'flex'; // Show scrollable content area
+async function loadProfilePage(eventId = 75) {
+    loginSection.style.display = 'none';
+    fixedHeaderContainer.style.display = 'flex';
+    profileContentScrollArea.style.display = 'flex';
 
-    // Clear previous content
     fixedHeaderContainer.innerHTML = '';
-    profileContentScrollArea.innerHTML = '<div class="loading-spinner"></div><p>Loading profile...</p>'; // Show loading indicator
+    profileContentScrollArea.innerHTML = '<div class="loading-spinner"></div><p>Loading profile...</p>';
 
     const data = await fetchGraphQLData(USER_PROFILE_QUERY);
     console.log('Fetched profile data:', data);
@@ -900,19 +932,20 @@ async function loadProfilePage() {
         return;
     }
 
-    const user = data.user[0]; // Assuming 'user' returns an array with one user
+    const user = data.user[0];
 
     // Calculate aggregated data
     const totalXp = user.totalXp?.aggregate?.sum?.amount || 0;
+    const totalXpMB = (totalXp / 1000000).toFixed(2); // Convert to MB with 2 decimal places
+    
+    // Get audit ratio (default to 0 if not available)
+    const auditRatio = user.auditRatio?.toFixed(1) || '0.0';
 
-    // Use average grade from either progresses or results, prioritizing progresses if available
     const avgGrade = (user.averageProgressGrade?.aggregate?.avg?.grade ||
-                      user.averageResultGrade?.aggregate?.avg?.grade)?.toFixed(2) || 'N/A';
+                    user.averageResultGrade?.aggregate?.avg?.grade)?.toFixed(2) || 'N/A';
 
     const xpProgressData = calculateXpProgress(user.transactions);
     const xpByProjectData = calculateXpByProject(user.transactions);
-    const passFailCounts = calculatePassFailCounts(user.results); // Use results for pass/fail
-    console.log(user.results)
 
     // Render the fixed header
     fixedHeaderContainer.innerHTML = `
@@ -927,15 +960,15 @@ async function loadProfilePage() {
         <section class="profile-summary">
             <div class="summary-card">
                 <h3>Total XP</h3>
-                <p>${totalXp} B</p>
+                <p>${totalXpMB} MB</p>
             </div>
             <div class="summary-card">
                 <h3>Average Grade</h3>
                 <p>${avgGrade}</p>
             </div>
             <div class="summary-card">
-                <h3>Exercises Tested</h3>
-                <p>${passFailCounts.total}</p>
+                <h3>Audit Ratio</h3>
+                <p>${auditRatio}</p>
             </div>
         </section>
 
@@ -949,24 +982,24 @@ async function loadProfilePage() {
                     <div id="xp-by-project-chart" class="chart-canvas"></div>
                 </div>
                 <div class="chart-box">
-                <h3>Skills</h3>
+                    <h3>Skills</h3>
                     <div id="skills-radar-chart" class="chart-canvas"></div>
                 </div>
             </div>
         </section>
     `;
 
-    // Attach event listener to the logout button (must be done AFTER rendering)
+    // Attach event listener to the logout button
     document.getElementById('logout-button').addEventListener('click', logout);
 
-    // Draw graphs after the elements are in the DOM
+    // Draw graphs
     const xpProgressChartContainer = document.getElementById('xp-progress-chart');
     const xpByProjectChartContainer = document.getElementById('xp-by-project-chart');
-    const passFailChartContainer = document.getElementById('pass-fail-chart');
+    const skillsRadarChartContainer = document.getElementById('skills-radar-chart');
 
     drawXpProgressLineChart(xpProgressChartContainer, xpProgressData);
     drawXpByProjectBarChart(xpByProjectChartContainer, xpByProjectData);
-    const skillsRadarChartContainer = document.getElementById('skills-radar-chart');
+    
     if (user.skill_types && user.skill_types.nodes) {
         drawSkillsRadarChart(skillsRadarChartContainer, user.skill_types.nodes);
     }
