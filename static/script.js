@@ -303,7 +303,7 @@ function drawSkillsRadarChart(container, data) {
     for (let level = 1; level <= levels; level++) {
         const levelFactor = radius * (level / levels);
         const levelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        
+
         // Draw polygon for this level
         const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
         let points = '';
@@ -317,7 +317,7 @@ function drawSkillsRadarChart(container, data) {
         polygon.setAttribute('stroke', '#ddd');
         polygon.setAttribute('fill', 'none');
         levelGroup.appendChild(polygon);
-        
+
         // Add level label
         const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         label.setAttribute('x', 0);
@@ -349,19 +349,19 @@ function drawSkillsRadarChart(container, data) {
         const labelRadius = radius + 20;
         const x = labelRadius * Math.cos(angle);
         const y = labelRadius * Math.sin(angle);
-        
+
         const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         label.setAttribute('x', x);
         label.setAttribute('y', y);
         label.setAttribute('text-anchor', 'middle');
         label.setAttribute('fill', '#333');
         label.setAttribute('font-size', '12');
-        
+
         // Adjust label position for readability
         if (angle > Math.PI / 2 && angle < 3 * Math.PI / 2) {
             label.setAttribute('text-anchor', 'end');
         }
-        
+
         label.textContent = skills[i].name;
         chartGroup.appendChild(label);
     }
@@ -390,7 +390,7 @@ function drawSkillsRadarChart(container, data) {
         const scaledValue = (value / maxValue) * radius;
         const x = scaledValue * Math.cos(angle);
         const y = scaledValue * Math.sin(angle);
-        
+
         const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         dot.setAttribute('cx', x);
         dot.setAttribute('cy', y);
@@ -398,7 +398,7 @@ function drawSkillsRadarChart(container, data) {
         dot.setAttribute('fill', 'rgba(75, 192, 192, 1)');
         dot.setAttribute('stroke', '#fff');
         dot.setAttribute('stroke-width', '1');
-        
+
         // Add tooltip on hover
         dot.addEventListener('mouseenter', () => {
             const tooltip = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -414,7 +414,7 @@ function drawSkillsRadarChart(container, data) {
             const tooltip = chartGroup.querySelector('.chart-tooltip');
             if (tooltip) tooltip.remove();
         });
-        
+
         chartGroup.appendChild(dot);
     }
 
@@ -498,7 +498,7 @@ function drawXpProgressLineChart(container, data) {
         text.textContent = data[index].date;
         chartGroup.appendChild(text);
     }
-    
+
     // X-axis title
     const xAxisTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     xAxisTitle.setAttribute('x', innerWidth / 2);
@@ -523,7 +523,7 @@ function drawXpProgressLineChart(container, data) {
         text.textContent = valueMB.toFixed(2) + ' MB';
         chartGroup.appendChild(text);
     }
-    
+
     // Y-axis title
     const yAxisTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     yAxisTitle.setAttribute('x', -margin.left + 15);
@@ -532,7 +532,7 @@ function drawXpProgressLineChart(container, data) {
     yAxisTitle.setAttribute('transform', `rotate(-90 -${margin.left - 15}, ${innerHeight / 2})`);
     yAxisTitle.setAttribute('fill', '#333');
     yAxisTitle.setAttribute('font-size', '12');
-    yAxisTitle.textContent = 'Module XP (MB)';
+    yAxisTitle.textContent = 'Project XP (MB)';
     chartGroup.appendChild(yAxisTitle);
 
     // Draw the line path (only if there are at least two points to form a line)
@@ -599,7 +599,7 @@ function drawXpProgressLineChart(container, data) {
     title.setAttribute('text-anchor', 'middle');
     title.setAttribute('font-size', '16');
     title.setAttribute('fill', '#333');
-    title.textContent = 'Module XP Progress Over Time';
+    title.textContent = 'Project XP Progress Over Time';
     svg.appendChild(title);
 
     container.appendChild(svg);
@@ -935,12 +935,15 @@ async function loadProfilePage(eventId = 75) {
     // Calculate aggregated data
     const totalXp = user.totalXp?.aggregate?.sum?.amount || 0;
     const totalXpMB = (totalXp / 1000000).toFixed(2); // Convert to MB with 2 decimal places
-    
+    const projectXpTransactions = user.transactions.filter(t => t.type === 'xp' && t.object?.type === 'project');
+    const totalProjectXp = projectXpTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const projectXpMB = (totalProjectXp / 1000000).toFixed(2);
+
     // Get audit ratio (default to 0 if not available)
     const auditRatio = user.auditRatio?.toFixed(1) || '0.0';
 
     const avgGrade = (user.averageProgressGrade?.aggregate?.avg?.grade ||
-                    user.averageResultGrade?.aggregate?.avg?.grade)?.toFixed(2) || 'N/A';
+        user.averageResultGrade?.aggregate?.avg?.grade)?.toFixed(2) || 'N/A';
 
     const xpProgressData = calculateXpProgress(user.transactions);
     const xpByProjectData = calculateXpByProject(user.transactions);
@@ -959,6 +962,12 @@ async function loadProfilePage(eventId = 75) {
             <div class="summary-card">
                 <h3>Total XP</h3>
                 <p>${totalXpMB} MB</p>
+                 <small>All activities</small>
+            </div>
+            <div class="summary-card">
+                <h3>Project XP</h3>
+                <p>${projectXpMB} MB</p>
+                <small>Projects only</small>
             </div>
             <div class="summary-card">
                 <h3>Average Grade</h3>
@@ -997,7 +1006,7 @@ async function loadProfilePage(eventId = 75) {
 
     drawXpProgressLineChart(xpProgressChartContainer, xpProgressData);
     drawXpByProjectBarChart(xpByProjectChartContainer, xpByProjectData);
-    
+
     if (user.skill_types && user.skill_types.nodes) {
         drawSkillsRadarChart(skillsRadarChartContainer, user.skill_types.nodes);
     }
