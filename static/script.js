@@ -181,15 +181,14 @@ async function fetchGraphQLData(query) {
         return null;
     }
 }
-
-/**
- * Calculates XP progress over time.
- * @param {Array} transactions - Array of transaction objects.
- * @returns {Array<{date: string, totalXp: number}>} - Array of objects with date and cumulative XP.
+/** 
+* Calculates XP progress over time for module projects only.
+ * @param {Array} transactions - Array of transaction objects (already filtered by eventId 75).
+ * @returns {Array<{date: string, totalXp: number, totalXpMB: string}>} - Array of objects with date and cumulative XP.
  */
 function calculateXpProgress(transactions) {
     const xpTransactions = transactions
-        .filter(t => t.type === 'xp' && t.object?.type === 'project') // Filter for project XP
+        .filter(t => t.type === 'xp' && t.object?.type === 'project') // Filter for project XP only
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)); // Sort by date
 
     let cumulativeXp = 0;
@@ -197,12 +196,14 @@ function calculateXpProgress(transactions) {
     xpTransactions.forEach(tx => {
         cumulativeXp += tx.amount;
         xpProgress.push({
-            date: new Date(tx.createdAt).toLocaleDateString(), // Or format as ISO 8601YYYY-MM-DD
-            totalXp: cumulativeXp
+            date: new Date(tx.createdAt).toLocaleDateString(),
+            totalXp: cumulativeXp,
+            totalXpMB: (cumulativeXp / 1000000).toFixed(2) // Convert to MB with 2 decimal places
         });
     });
     return xpProgress;
 }
+
 
 /**
  * Calculates XP earned per project.
@@ -430,14 +431,14 @@ function drawSkillsRadarChart(container, data) {
 }
 
 /**
- * Draws an SVG line chart for XP progress over time.
+ * Draws an SVG line chart for XP progress over time (Module XP only, displayed in MB).
  * @param {HTMLElement} container - The SVG container element.
- * @param {Array<{date: string, totalXp: number}>} data - Data points for the chart.
+ * @param {Array<{date: string, totalXp: number, totalXpMB: string}>} data - Data points for the chart.
  */
 function drawXpProgressLineChart(container, data) {
     container.innerHTML = ''; // Clear previous SVG content
     if (!data || data.length === 0) {
-        container.textContent = 'No XP data available for line chart.';
+        container.textContent = 'No module XP data available for line chart.';
         return;
     }
 
@@ -445,11 +446,11 @@ function drawXpProgressLineChart(container, data) {
     const height = 300;
     const margin = { top: 20, right: 30, bottom: 60, left: 70 }; // Increased bottom for rotated labels
     const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - (margin.top + margin.bottom); // Correct calculation
+    const innerHeight = height - (margin.top + margin.bottom);
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet'); // Maintain aspect ratio
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg.setAttribute('class', 'chart-svg');
 
     // Create a group for chart content to apply margins
@@ -458,12 +459,11 @@ function drawXpProgressLineChart(container, data) {
     svg.appendChild(chartGroup);
 
     // Calculate scales
-    // Ensure xMax is at least 1 to prevent division by zero if only one data point
     const xMax = data.length > 1 ? Math.max(...data.map((d, i) => i)) : 1;
-    const yMax = Math.max(...data.map(d => d.totalXp));
+    const yMax = Math.max(...data.map(d => d.totalXp)) / 1000000; // Convert to MB for scaling
 
     const xScale = (index) => (index / xMax) * innerWidth;
-    const yScale = (value) => innerHeight - (value / yMax) * innerHeight;
+    const yScale = (valueMB) => innerHeight - (valueMB / yMax) * innerHeight;
 
     // Draw X-axis line
     const xAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -491,37 +491,39 @@ function drawXpProgressLineChart(container, data) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', xPos);
         text.setAttribute('y', innerHeight + 10);
-        text.setAttribute('text-anchor', 'end'); // Align to the end
-        text.setAttribute('transform', `rotate(-45 ${xPos}, ${innerHeight + 10})`); // Rotate labels
+        text.setAttribute('text-anchor', 'end');
+        text.setAttribute('transform', `rotate(-45 ${xPos}, ${innerHeight + 10})`);
         text.setAttribute('fill', '#333');
         text.setAttribute('font-size', '10');
         text.textContent = data[index].date;
         chartGroup.appendChild(text);
     }
+    
     // X-axis title
     const xAxisTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     xAxisTitle.setAttribute('x', innerWidth / 2);
-    xAxisTitle.setAttribute('y', height - margin.top - 5); // Adjusted position
+    xAxisTitle.setAttribute('y', height - margin.top - 5);
     xAxisTitle.setAttribute('text-anchor', 'middle');
     xAxisTitle.setAttribute('fill', '#333');
     xAxisTitle.setAttribute('font-size', '12');
     xAxisTitle.textContent = 'Date';
     chartGroup.appendChild(xAxisTitle);
 
-    // Draw Y-axis labels
+    // Draw Y-axis labels (in MB)
     const numYLabels = 5;
     for (let i = 0; i <= numYLabels; i++) {
-        const value = (yMax / numYLabels) * i;
-        const yPos = yScale(value);
+        const valueMB = (yMax / numYLabels) * i;
+        const yPos = yScale(valueMB);
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', -5);
         text.setAttribute('y', yPos + 3);
         text.setAttribute('text-anchor', 'end');
         text.setAttribute('fill', '#333');
         text.setAttribute('font-size', '10');
-        text.textContent = Math.round(value);
+        text.textContent = valueMB.toFixed(2) + ' MB';
         chartGroup.appendChild(text);
     }
+    
     // Y-axis title
     const yAxisTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     yAxisTitle.setAttribute('x', -margin.left + 15);
@@ -530,21 +532,20 @@ function drawXpProgressLineChart(container, data) {
     yAxisTitle.setAttribute('transform', `rotate(-90 -${margin.left - 15}, ${innerHeight / 2})`);
     yAxisTitle.setAttribute('fill', '#333');
     yAxisTitle.setAttribute('font-size', '12');
-    yAxisTitle.textContent = 'Total XP';
+    yAxisTitle.textContent = 'Module XP (MB)';
     chartGroup.appendChild(yAxisTitle);
-
 
     // Draw the line path (only if there are at least two points to form a line)
     if (data.length > 1) {
-        let pathData = `M ${xScale(0)},${yScale(data[0].totalXp)}`;
+        let pathData = `M ${xScale(0)},${yScale(data[0].totalXp / 1000000)}`;
         for (let i = 1; i < data.length; i++) {
-            pathData += ` L ${xScale(i)},${yScale(data[i].totalXp)}`;
+            pathData += ` L ${xScale(i)},${yScale(data[i].totalXp / 1000000)}`;
         }
 
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', pathData);
         path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', '#60a5fa'); // Blue color
+        path.setAttribute('stroke', '#60a5fa');
         path.setAttribute('stroke-width', '2');
         path.setAttribute('class', 'chart-line');
         chartGroup.appendChild(path);
@@ -552,7 +553,7 @@ function drawXpProgressLineChart(container, data) {
         // If only one point, draw a circle at that point
         const singlePoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         singlePoint.setAttribute('cx', xScale(0));
-        singlePoint.setAttribute('cy', yScale(data[0].totalXp));
+        singlePoint.setAttribute('cy', yScale(data[0].totalXp / 1000000));
         singlePoint.setAttribute('r', 5);
         singlePoint.setAttribute('fill', '#60a5fa');
         singlePoint.setAttribute('stroke', '#fff');
@@ -560,29 +561,28 @@ function drawXpProgressLineChart(container, data) {
         chartGroup.appendChild(singlePoint);
     }
 
-
     // Add circles for data points
     data.forEach((d, i) => {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', xScale(i));
-        circle.setAttribute('cy', yScale(d.totalXp));
+        circle.setAttribute('cy', yScale(d.totalXp / 1000000));
         circle.setAttribute('r', 3);
         circle.setAttribute('fill', '#60a5fa');
         circle.setAttribute('stroke', '#fff');
         circle.setAttribute('stroke-width', '1');
-        circle.setAttribute('data-xp', d.totalXp); // Store data for potential interactivity
+        circle.setAttribute('data-xp', d.totalXpMB);
         circle.setAttribute('data-date', d.date);
         circle.setAttribute('class', 'chart-point');
         chartGroup.appendChild(circle);
 
-        // Optional: Add hover interactivity for circles
+        // Add hover interactivity for circles
         circle.addEventListener('mouseenter', (event) => {
             const tooltip = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             tooltip.setAttribute('x', event.target.cx.baseVal.value + 5);
             tooltip.setAttribute('y', event.target.cy.baseVal.value - 5);
             tooltip.setAttribute('fill', '#000');
             tooltip.setAttribute('font-size', '12');
-            tooltip.textContent = `Date: ${d.date}, XP: ${d.totalXp}`;
+            tooltip.textContent = `Date: ${d.date}, XP: ${d.totalXpMB} MB`;
             tooltip.setAttribute('class', 'chart-tooltip');
             chartGroup.appendChild(tooltip);
         });
@@ -599,13 +599,11 @@ function drawXpProgressLineChart(container, data) {
     title.setAttribute('text-anchor', 'middle');
     title.setAttribute('font-size', '16');
     title.setAttribute('fill', '#333');
-    title.textContent = 'XP Progress Over Time';
+    title.textContent = 'Module XP Progress Over Time';
     svg.appendChild(title);
-
 
     container.appendChild(svg);
 }
-
 
 /**
  * Draws an SVG bar chart for XP earned by project.
