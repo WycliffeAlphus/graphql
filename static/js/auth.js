@@ -63,7 +63,7 @@ export async function handleLogin(event) {
             const errorText = await response.text();
             console.error('Login failed:', response.status, errorText);
             
-            if (response.status === 401) {
+            if (response.status === 401 || response.status === 403) {
                 displayErrorMessage(ERROR_MESSAGES.INVALID_CREDENTIALS);
             } else {
                 displayErrorMessage(`${ERROR_MESSAGES.NETWORK_ERROR} (Status: ${response.status})`);
